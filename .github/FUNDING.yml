@@ -1,5 +1,5 @@
 # Nexuscone funding targets — read by GitHub to render the Sponsor button.
-# Only approved accounts render; listing both the personal and org handles
-# means whichever is enrolled first lights up.
-github: [osiabu, nexuscone]
+# Personal handle only; org-level Sponsors needs a verified entity that
+# does not exist yet. Revisit if Aperintel Ltd is incorporated.
+github: [osiabu]
 custom: ["https://aperintel.com"]
