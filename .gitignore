@@ -77,3 +77,16 @@ data/
 *.db
 *.sqlite
 *.sqlite3
+
+# Local planning docs (must never be pushed to GitHub)
+CLAUDE.md
+changes.txt
+handoff.txt
+handoff1.txt
+OUTSTANDING.txt
+INSTALL_GUIDE.md
+SPONSORSHIP_OUTSTANDING.txt
+sponsor_call_notes/
+*BUILD_GUIDE*.txt
+*BUILD_GUIDE*.md
+Nexus/
