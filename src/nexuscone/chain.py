@@ -53,6 +53,11 @@ from typing import Any, Protocol
 import aiosqlite
 
 from nexuscone.canonical import canonical_json, sha256_hex
+from nexuscone.schema import (
+    ANCHORS_INDEX_CHAIN_HEAD,
+    ANCHORS_INDEX_UNCONFIRMED,
+    ANCHORS_TABLE_SQL,
+)
 
 GENESIS_PREVIOUS_HASH = "0" * 64
 
@@ -232,6 +237,9 @@ class Ledger:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db = await aiosqlite.connect(self._db_path)
         self._db.row_factory = aiosqlite.Row
+        # SQLite enforces foreign keys per connection, off by default. The
+        # anchors table FK on entries(entry_id) needs this on to be useful.
+        await self._db.execute("PRAGMA foreign_keys = ON")
         await self._db.execute(_SCHEMA)
         # Migrate legacy columns BEFORE creating indexes that depend on them,
         # otherwise CREATE INDEX on event_type fails on a v0.1.0 table.
@@ -239,6 +247,7 @@ class Ledger:
         await self._db.execute(_INDEX_ACTOR)
         await self._db.execute(_INDEX_TIMESTAMP)
         await self._db.execute(_INDEX_EVENT_TYPE)
+        await self._ensure_anchors_table()
         await self._db.commit()
         self._initialised = True
 
@@ -266,6 +275,18 @@ class Ledger:
                 "ALTER TABLE entries ADD COLUMN format_version INTEGER NOT NULL "
                 "DEFAULT 1"
             )
+
+    async def _ensure_anchors_table(self) -> None:
+        """Create the anchors table and its two indexes if missing.
+
+        Idempotent: re-running on a database that already has the table is
+        a no-op thanks to IF NOT EXISTS. The anchors table stores
+        OpenTimestamps proofs that bind chain heads to Bitcoin blocks.
+        """
+        assert self._db is not None
+        await self._db.execute(ANCHORS_TABLE_SQL)
+        await self._db.execute(ANCHORS_INDEX_CHAIN_HEAD)
+        await self._db.execute(ANCHORS_INDEX_UNCONFIRMED)
 
     async def close(self) -> None:
         """Close the underlying SQLite connection."""
