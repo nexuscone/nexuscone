@@ -970,6 +970,39 @@ class Ledger:
             raise KeyError(f"No anchor with anchor_id={anchor_id}")
         return _row_to_anchor(row)
 
+    async def get_anchor(self, anchor_id: int) -> AnchorRecord:
+        """Fetch a single anchor by id; raises KeyError if not found."""
+        db = self._require_db()
+        async with db.execute(
+            "SELECT * FROM anchors WHERE anchor_id = ?", (anchor_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            raise KeyError(f"No anchor with anchor_id={anchor_id}")
+        return _row_to_anchor(row)
+
+    async def get_anchors(
+        self,
+        *,
+        confirmed: bool | None = None,
+        limit: int = 500,
+    ) -> list[AnchorRecord]:
+        """List anchors ordered by anchor_id ascending.
+
+        confirmed=True returns only Bitcoin-confirmed rows; confirmed=False
+        returns only pending rows; None (default) returns all anchors.
+        """
+        db = self._require_db()
+        sql = "SELECT * FROM anchors"
+        if confirmed is True:
+            sql += " WHERE confirmed_at IS NOT NULL"
+        elif confirmed is False:
+            sql += " WHERE confirmed_at IS NULL"
+        sql += " ORDER BY anchor_id LIMIT ?"
+        async with db.execute(sql, (int(limit),)) as cursor:
+            rows = await cursor.fetchall()
+        return [_row_to_anchor(row) for row in rows]
+
     async def register_witness(
         self,
         *,

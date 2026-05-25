@@ -19,6 +19,7 @@ from nexuscone.rfc3161 import (
     DEFAULT_TSA_URLS,
     TSAError,
     submit_to_tsa,
+    verify_tst,
 )
 
 
@@ -101,6 +102,30 @@ def test_submit_to_tsa_raises_on_malformed_response(
     monkeypatch.setattr(rfc3161, "urlopen", fake_urlopen)
     with pytest.raises(TSAError, match="malformed TimeStampResp"):
         submit_to_tsa(b"\x00" * 32, "https://lying.test.invalid/tsr")
+
+
+def test_verify_tst_accepts_the_real_grant_fixture() -> None:
+    """The recorded FreeTSA grant was minted against b"\\x00" * 32. The
+    verifier rederives the SHA-256 imprint and confirms it matches."""
+    body = _real_freetsa_grant_body()
+    response = verify_tst(body, b"\x00" * 32, tsa_url="https://freetsa.test.invalid/tsr")
+    assert response.tsa_url == "https://freetsa.test.invalid/tsr"
+    assert response.tst_blob == body
+    assert response.hash_algorithm == "2.16.840.1.101.3.4.2.1"
+    assert response.gen_time.tzinfo is not None
+
+
+def test_verify_tst_rejects_digest_mismatch() -> None:
+    """A TST minted for one digest must not verify against another."""
+    body = _real_freetsa_grant_body()
+    with pytest.raises(TSAError, match="message imprint does not match"):
+        verify_tst(body, b"\x01" * 32)
+
+
+def test_verify_tst_rejects_malformed_blob() -> None:
+    """A bytes blob that is not a valid TimeStampResp DER raises."""
+    with pytest.raises(TSAError, match="Malformed TimeStampResp"):
+        verify_tst(b"not a real timestamp response", b"\x00" * 32)
 
 
 def _real_freetsa_grant_body() -> bytes:

@@ -23,6 +23,7 @@ the simulated TSA response without making real network calls.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
@@ -33,6 +34,8 @@ from rfc3161_client import (
     TimestampRequestBuilder,
     decode_timestamp_response,
 )
+
+_SHA256_OID = "2.16.840.1.101.3.4.2.1"
 
 DEFAULT_TSA_URLS: list[str] = [
     "https://freetsa.org/tsr",
@@ -158,4 +161,70 @@ def submit_to_tsa(
         gen_time=gen_time,
         hash_algorithm=hash_algorithm_oid,
         serial_number=serial_number,
+    )
+
+
+def verify_tst(
+    tst_blob: bytes,
+    digest: bytes,
+    *,
+    tsa_url: str = "",
+) -> TSAResponse:
+    """Verify a stored TimeStampToken against the digest it covers.
+
+    Decodes the TST, confirms the PKIStatus is GRANTED, recomputes
+    sha256(digest), and confirms the recomputed imprint equals the
+    message imprint inside the TST. Returns the parsed TSAResponse on
+    success; raises TSAError on any structural or content mismatch.
+
+    Verification is content-only and deliberately does NOT validate the
+    TSA certificate chain against a trust store. Chain validation is a
+    higher-tier verifier responsibility that lives outside v0.2.0.
+
+    Only SHA-256 imprints are supported. submit_to_tsa always uses
+    SHA-256, so any TST in a nexuscone-produced database will have the
+    expected algorithm; a non-SHA-256 imprint indicates a TST minted
+    outside this package and is rejected explicitly.
+    """
+    try:
+        response = decode_timestamp_response(tst_blob)
+    except Exception as exc:  # noqa: BLE001
+        raise TSAError(f"Malformed TimeStampResp: {exc!r}") from exc
+
+    pki_status = int(response.status)
+    if pki_status not in (int(PKIStatus.GRANTED), int(PKIStatus.GRANTED_WITH_MODS)):
+        raise TSAError(
+            f"TST PKIStatus={pki_status}, expected GRANTED or GRANTED_WITH_MODS"
+        )
+
+    tst_info = response.tst_info
+    if tst_info is None:
+        raise TSAError("TST has no TSTInfo")
+
+    imprint = tst_info.message_imprint
+    hash_algorithm_oid = imprint.hash_algorithm.dotted_string
+    if hash_algorithm_oid != _SHA256_OID:
+        raise TSAError(
+            f"TST imprint hash {hash_algorithm_oid} is not SHA-256; "
+            "v0.2.0 verifier only supports SHA-256 imprints."
+        )
+
+    expected = hashlib.sha256(digest).digest()
+    stored = bytes(imprint.message)
+    if expected != stored:
+        raise TSAError(
+            "TST message imprint does not match sha256(digest); "
+            f"expected {expected.hex()}, stored {stored.hex()}"
+        )
+
+    gen_time = tst_info.gen_time
+    if gen_time.tzinfo is None:
+        gen_time = gen_time.replace(tzinfo=timezone.utc)
+
+    return TSAResponse(
+        tst_blob=tst_blob,
+        tsa_url=tsa_url,
+        gen_time=gen_time,
+        hash_algorithm=hash_algorithm_oid,
+        serial_number=str(tst_info.serial_number),
     )
