@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nexuscone"
-version = "0.2.0"
+version = "0.2.1"
 description = "Tamper-evident append-only audit ledger with SHA-256 hash chain, optional Ed25519 signing, and optional Bitcoin anchoring via OpenTimestamps"
 readme = "README.md"
 license = { text = "Apache-2.0" }
