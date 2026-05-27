@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/nexuscone/nexuscone/security/advisories/new
+    about: Please do not file security issues publicly. Use a GitHub Security Advisory, or email osi@aperintel.com with the subject [Nexuscone Security].
+  - name: PyPI package page
+    url: https://pypi.org/project/nexuscone/
+    about: Installation, version history, and PEP 723 metadata.
+  - name: Sponsor on GitHub
+    url: https://github.com/sponsors/osiabu
+    about: Fund ongoing maintenance and the v0.3.x AWS-native roadmap.
